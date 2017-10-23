@@ -150,6 +150,9 @@
 			// String - Tooltip title font colour
 			tooltipTitleFontColor: "#fff",
 
+			// String - Tooltip title font colour
+			tooltipTitle: "",
+
 			// Number - pixel width of padding around tooltip text
 			tooltipYPadding: 6,
 
@@ -178,8 +181,18 @@
 			onAnimationProgress: function(){},
 
 			// Function - Will fire on animation completion.
-			onAnimationComplete: function(){}
+			onAnimationComplete: function(){},
 
+			// Custom variable to allow for drawing of Y axis or not
+			drawYAxis: false,
+			
+			verticalToolTip: false,
+			
+			drawVerticalToolTipLines: false,
+			
+			dottedLineFromIndex: 0,
+			
+			drawLimitLines: null,
 		}
 	};
 
@@ -992,7 +1005,8 @@
 
 							return {
 								x: (xMin > this.chart.width/2) ? xMin : xMax,
-								y: (yMin + yMax)/2
+								y: (yMin + yMax)/2,
+								elements: Elements
 							};
 						}).call(this, dataIndex);
 
@@ -1015,7 +1029,7 @@
 						labels: tooltipLabels,
 						legendColors: tooltipColors,
 						legendColorBackground : this.options.multiTooltipKeyBackground,
-						title: ChartElements[0].label,
+						title: template(this.options.tooltipTitle, medianPosition),
 						chart: this.chart,
 						ctx: this.chart.ctx,
 						custom: this.options.customTooltips
@@ -1036,6 +1050,8 @@
 							fontSize: this.options.tooltipFontSize,
 							caretHeight: this.options.tooltipCaretSize,
 							cornerRadius: this.options.tooltipCornerRadius,
+							verticalToolTip: this.options.verticalToolTip,
+							drawVerticalToolTipLines: this.options.drawVerticalToolTipLines,
 							text: template(this.options.tooltipTemplate, Element),
 							chart: this.chart,
 							custom: this.options.customTooltips
@@ -1238,6 +1254,21 @@
 			if (this.showStroke){
 				ctx.stroke();
 			}
+
+			ctx.beginPath();
+
+			ctx.arc(this.x, this.y, this.innerRadius + 9, this.startAngle, this.endAngle);
+			ctx.arc(this.x, this.y, this.innerRadius, this.endAngle, this.startAngle, true);
+
+			ctx.closePath();
+			ctx.fillStyle = "rgba(0, 0, 0, .1)";
+
+			ctx.fill();
+			ctx.lineJoin = 'bevel';
+
+			if (this.showStroke) {
+				ctx.showStroke();
+			}
 		}
 	});
 
@@ -1294,77 +1325,167 @@
 			this.yAlign = "above";
 
 			//Distance between the actual element.y position and the start of the tooltip caret
-			var caretPadding = this.caretPadding = 2;
+			var caretPadding = this.caretPadding = 10;
 
 			var tooltipWidth = ctx.measureText(this.text).width + 2*this.xPadding,
 				tooltipRectHeight = this.fontSize + 2*this.yPadding,
-				tooltipHeight = tooltipRectHeight + this.caretHeight + caretPadding;
+				tooltipHeight = tooltipRectHeight + this.caretHeight + caretPadding / 2;
 
-			if (this.x + tooltipWidth/2 >this.chart.width){
-				this.xAlign = "left";
-			} else if (this.x - tooltipWidth/2 < 0){
-				this.xAlign = "right";
+			if (!this.verticalToolTip) {
+
+				if (this.x + tooltipWidth + this.xOffset > this.chart.width) {
+					var tooltipX = this.x - tooltipWidth - this.xOffset;
+					if (this.xOffset > 15) {
+						this.yAlign = "left";
+					}
+				} else {
+					var tooltipX = this.x + this.xOffset;
+					if (this.xOffset > 15) {
+					    this.yAlign = "right";
+					}
+				}
+			} else {
+				var tooltipX = this.x - tooltipWidth/2,
+					tooltipY = this.y - tooltipHeight;
 			}
-
-			if (this.y - tooltipHeight < 0){
-				this.yAlign = "below";
-			}
-
-
-			var tooltipX = this.x - tooltipWidth/2,
-				tooltipY = this.y - tooltipHeight;
 
 			ctx.fillStyle = this.fillColor;
 
 			// Custom Tooltips
-			if(this.custom){
-				this.custom(this);
-			}
-			else{
-				switch(this.yAlign)
-				{
-				case "above":
-					//Draw a caret above the x/y
-					ctx.beginPath();
-					ctx.moveTo(this.x,this.y - caretPadding);
-					ctx.lineTo(this.x + this.caretHeight, this.y - (caretPadding + this.caretHeight));
-					ctx.lineTo(this.x - this.caretHeight, this.y - (caretPadding + this.caretHeight));
-					ctx.closePath();
-					ctx.fill();
-					break;
-				case "below":
-					tooltipY = this.y + caretPadding + this.caretHeight;
-					//Draw a caret below the x/y
-					ctx.beginPath();
-					ctx.moveTo(this.x, this.y + caretPadding);
-					ctx.lineTo(this.x + this.caretHeight, this.y + caretPadding + this.caretHeight);
-					ctx.lineTo(this.x - this.caretHeight, this.y + caretPadding + this.caretHeight);
-					ctx.closePath();
-					ctx.fill();
-					break;
-				}
+            if(this.custom){
+                this.custom(this);
+            }
+            else {
+                switch(this.yAlign)
+                {
+                    case "left":
+                        //Draw a caret above the x/y
 
-				switch(this.xAlign)
-				{
-				case "left":
-					tooltipX = this.x - tooltipWidth + (this.cornerRadius + this.caretHeight);
-					break;
-				case "right":
-					tooltipX = this.x - (this.cornerRadius + this.caretHeight);
-					break;
-				}
+                        if (this.drawVerticalToolTipLines) {
+                            ctx.beginPath();
 
-				drawRoundedRectangle(ctx,tooltipX,tooltipY,tooltipWidth,tooltipRectHeight,this.cornerRadius);
+                            ctx.moveTo(this.x, this.y - 8);
+                            ctx.strokeStyle = '#d9d9d9';
+                            ctx.strokeWidth = 0;
+                            ctx.lineTo(this.x, 10);
+                            ctx.stroke();
+                            ctx.closePath();
 
-				ctx.fill();
+                            ctx.beginPath();
+                            ctx.moveTo(this.x, this.y + 8);
+                            ctx.strokeStyle = '#d9d9d9';
 
-				ctx.fillStyle = this.textColor;
-				ctx.textAlign = "center";
-				ctx.textBaseline = "middle";
-				ctx.fillText(this.text, tooltipX + tooltipWidth/2, tooltipY + tooltipRectHeight/2);
-			}
-		}
-	});
+                            ctx.lineTo(this.x, this.chart.height - 15);
+                            ctx.stroke();
+                            ctx.closePath();
+
+                        }
+
+                        ctx.beginPath();
+                        ctx.moveTo(this.x - 8,this.y);
+                        ctx.lineTo(this.x - 8 - (caretPadding + this.caretHeight), this.y + this.caretHeight );
+                        ctx.lineTo(this.x - 8 - (caretPadding + this.caretHeight), this.y - this.caretHeight);
+                        ctx.closePath();
+                        ctx.fill();
+
+                        break;
+                    case "right":
+
+                        if (this.drawVerticalToolTipLines) {
+
+                            //Draw a caret above the x/y
+                            ctx.beginPath();
+                            ctx.moveTo(this.x, this.y - 8);
+                            ctx.strokeStyle = '#d9d9d9';
+
+                            ctx.lineTo(this.x, 10);
+                            ctx.stroke();
+                            ctx.closePath();
+
+                            ctx.beginPath();
+                            ctx.moveTo(this.x, this.y + 8);
+                            ctx.strokeStyle = '#d9d9d9';
+
+                            ctx.lineTo(this.x, this.chart.height - 15);
+                            ctx.stroke();
+                            ctx.closePath();
+                        }
+
+
+                        ctx.beginPath();
+                        ctx.moveTo(this.x + 8,this.y);
+                        ctx.lineTo(this.x + 8 + (caretPadding + this.caretHeight), this.y + this.caretHeight );
+                        ctx.lineTo(this.x + 8 + (caretPadding + this.caretHeight), this.y - this.caretHeight);
+                        ctx.closePath();
+                        ctx.fill();
+
+                        break;
+                    case "above":
+                        //Draw a caret above the x/y
+
+                        if (this.drawVerticalToolTipLines) {
+                            ctx.beginPath();
+                            ctx.moveTo(this.x, this.y + 8);
+                            ctx.strokeStyle = '#ffcc34';
+
+                            ctx.lineTo(this.x, this.chart.height - 15);
+                            ctx.stroke();
+                            ctx.closePath();
+                        }
+
+                        ctx.beginPath();
+                        ctx.moveTo(this.x,this.y - caretPadding);
+                        ctx.lineTo(this.x + this.caretHeight, this.y - (caretPadding + this.caretHeight));
+                        ctx.lineTo(this.x - this.caretHeight, this.y - (caretPadding + this.caretHeight));
+                        ctx.closePath();
+                        ctx.fill();
+                        break;
+                    case "below":
+                        tooltipY = this.y + caretPadding + this.caretHeight;
+                        //Draw a caret below the x/y
+
+                        if (this.drawVerticalToolTipLines) {
+                            ctx.beginPath();
+
+                            ctx.moveTo(this.x, this.y + 8);
+                            ctx.strokeStyle = '#ffcc34';
+                            ctx.lineTo(this.x, this.chart.height - 15);
+
+                            ctx.stroke();
+                            ctx.closePath();
+                        }
+
+                        ctx.beginPath();
+                        ctx.moveTo(this.x, this.y + caretPadding);
+                        ctx.lineTo(this.x + this.caretHeight, this.y + caretPadding + this.caretHeight);
+                        ctx.lineTo(this.x - this.caretHeight, this.y + caretPadding + this.caretHeight);
+                        ctx.closePath();
+                        ctx.fill();
+                        break;
+                }
+
+                /*if (this.verticalToolTip) {
+                 switch (this.xAlign) {
+                 case "left":
+                 tooltipX = this.x - tooltipWidth + (this.cornerRadius + this.caretHeight);
+                 break;
+                 case "right":
+                 tooltipX = this.x - (this.cornerRadius + this.caretHeight);
+                 break;
+                 }
+                 }*/
+
+                drawRoundedRectangle(ctx,tooltipX,tooltipY,tooltipWidth,tooltipRectHeight,this.cornerRadius);
+
+                ctx.fill();
+
+                ctx.fillStyle = this.textColor;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(this.text, tooltipX + tooltipWidth/2, tooltipY + tooltipRectHeight/2);
+            }
+        }
+    });
 
 	Chart.MultiTooltip = Chart.Element.extend({
 		initialize : function(){
@@ -1670,7 +1791,7 @@
 						drawVerticalLine = this.showVerticalLines;
 
 					// This is Y axis, so draw it
-					if (index === 0 && !drawVerticalLine){
+					if (index === 0 && !drawVerticalLine && this.drawYAxis){
 						drawVerticalLine = true;
 					}
 
@@ -2372,8 +2493,10 @@
 		initialize:  function(data){
 
 			//Declare segments as a static property to prevent inheriting across the Chart type prototype
+			// This pushes the doughnut chart up so we can insert DropShadow below it
+			this.paddingY = 8;
 			this.segments = [];
-			this.outerRadius = (helpers.min([this.chart.width,this.chart.height]) -	this.options.segmentStrokeWidth/2)/2;
+			this.outerRadius = (helpers.min([this.chart.width,this.chart.height - this.paddingY]) -    this.options.segmentStrokeWidth/2)/2;
 
 			this.SegmentArc = Chart.Arc.extend({
 				ctx : this.chart.ctx,
@@ -2468,7 +2591,7 @@
 				x : this.chart.width/2,
 				y : this.chart.height/2
 			});
-			this.outerRadius = (helpers.min([this.chart.width,this.chart.height]) -	this.options.segmentStrokeWidth/2)/2;
+			this.outerRadius = (helpers.min([this.chart.width,this.chart.height- this.paddingY]) -     this.options.segmentStrokeWidth/2)/2;
 			helpers.each(this.segments, function(segment){
 				segment.update({
 					outerRadius : this.outerRadius,
@@ -2477,28 +2600,52 @@
 			}, this);
 		},
 		draw : function(easeDecimal){
-			var animDecimal = (easeDecimal) ? easeDecimal : 1;
-			this.clear();
-			helpers.each(this.segments,function(segment,index){
-				segment.transition({
-					circumference : this.calculateCircumference(segment.value),
-					outerRadius : this.outerRadius,
-					innerRadius : (this.outerRadius/100) * this.options.percentageInnerCutout
-				},animDecimal);
+            var animDecimal = (easeDecimal) ? easeDecimal : 1;
+            this.clear();
 
-				segment.endAngle = segment.startAngle + segment.circumference;
+            // Drop shadow is inserted by add two Bezier curves and fill the resultant ellipse
+            var context = this.chart.ctx;
+            var centerX = this.chart.width/2, centerY = this.chart.height-4, height = 8, width = this.chart.width/2;
 
-				segment.draw();
-				if (index === 0){
-					segment.startAngle = Math.PI * 1.5;
-				}
-				//Check to see if it's the last segment, if not get the next and update the start angle
-				if (index < this.segments.length-1){
-					this.segments[index+1].startAngle = segment.endAngle;
-				}
-			},this);
+            context.beginPath();
 
-		}
+            context.moveTo(centerX, centerY - height/2); // A1
+
+            context.bezierCurveTo(
+                centerX + width/2, centerY - height/2, // C1
+                centerX + width/2, centerY + height/2, // C2
+                centerX, centerY + height/2); // A2
+
+            context.bezierCurveTo(
+                centerX - width/2, centerY + height/2, // C3
+                centerX - width/2, centerY - height/2, // C4
+                centerX, centerY - height/2); // A1
+
+            context.fillStyle = "rgba(0,0,0,.05)";
+            context.fill();
+            context.closePath();
+            // End Drop shadow
+
+            helpers.each(this.segments,function(segment,index){
+                segment.transition({
+                    circumference : this.calculateCircumference(segment.value),
+                    outerRadius : this.outerRadius,
+                    innerRadius : (this.outerRadius/100) * this.options.percentageInnerCutout
+                },animDecimal);
+
+                segment.endAngle = segment.startAngle + segment.circumference;
+
+                segment.draw();
+                if (index === 0){
+                    segment.startAngle = Math.PI * 1.5;
+                }
+                //Check to see if it's the last segment, if not get the next and update the start angle
+                if (index < this.segments.length-1){
+                    this.segments[index+1].startAngle = segment.endAngle;
+                }
+            },this);
+
+        }
 	});
 
 	Chart.types.Doughnut.extend({
@@ -2711,7 +2858,8 @@
 				gridLineColor : (this.options.scaleShowGridLines) ? this.options.scaleGridLineColor : "rgba(0,0,0,0)",
 				padding: (this.options.showScale) ? 0 : this.options.pointDotRadius + this.options.pointDotStrokeWidth,
 				showLabels : this.options.scaleShowLabels,
-				display : this.options.showScale
+				display : this.options.showScale,
+				drawYAxis : this.options.drawYAxis
 			};
 
 			if (this.options.scaleOverride){
@@ -2778,6 +2926,9 @@
 				return helpers.findPreviousWhere(collection, hasValue, index) || point;
 			};
 
+			var xScalePaddingRight = 20;
+			this.scale.xScalePaddingRight = xScalePaddingRight;
+
 			this.scale.draw(easingDecimal);
 
 
@@ -2834,9 +2985,15 @@
 				ctx.lineWidth = this.options.datasetStrokeWidth;
 				ctx.strokeStyle = dataset.strokeColor;
 				ctx.beginPath();
+				ctx.setLineDash([]);
 
 				helpers.each(pointsWithValues, function(point, index){
 					if (index === 0){
+						if (this.options.dottedLineFromIndex) {
+							if (index == pointsWithValues.length - (this.options.dottedLineFromIndex + 1)) {
+								ctx.setLineDash([2, 2]);
+							}
+						}
 						ctx.moveTo(point.x, point.y);
 					}
 					else{
@@ -2855,10 +3012,19 @@
 						else{
 							ctx.lineTo(point.x,point.y);
 						}
+						if (this.options.dottedLineFromIndex) {
+						    if (index == pointsWithValues.length - (this.options.dottedLineFromIndex + 1)) {
+						        ctx.stroke();
+						        ctx.beginPath();
+						        ctx.moveTo(point.x, point.y);
+						        ctx.setLineDash([2, 2]);
+						    }
+						}
 					}
 				}, this);
 
 				ctx.stroke();
+				ctx.setLineDash([]);
 
 				if (this.options.datasetFill && pointsWithValues.length > 0){
 					//Round off the line by going to the base of the chart, back to the start, then fill.
@@ -2876,6 +3042,60 @@
 					point.draw();
 				});
 			},this);
+
+			if (this.options.drawLimitLines) {
+				
+				var lines = this.options.drawLimitLines;
+
+				for (var i = lines.length; --i >= 0;) {
+
+					var xStart = Math.round(this.scale.xScalePaddingLeft);
+					var linePositionY = this.scale.calculateY(lines[i].value);
+
+					this.chart.ctx.fillStyle = lines[i].color ? lines[i].color : this.scale.textColor;
+					this.chart.ctx.font = this.scale.font;
+					this.chart.ctx.textAlign = "left";
+					this.chart.ctx.textBaseline = "top";
+
+					if (this.scale.showLabels && lines[i].label) {
+						this.chart.ctx.fillStyle = lines[i].textColor;
+						this.chart.ctx.fillText(lines[i].label, this.scale.width - 110, linePositionY - 20);
+					}
+
+					this.chart.ctx.fillStyle = lines[i].color ? lines[i].color : this.scale.textColor;
+
+					this.chart.ctx.lineWidth = this.scale.gridLineWidth;
+					this.chart.ctx.strokeStyle = lines[i].color ? lines[i].color : this.scale.gridLineColor;
+					this.chart.ctx.setLineDash([2, 2]);
+
+					if (this.scale.showHorizontalLines) {
+						this.chart.ctx.beginPath();
+						this.chart.ctx.moveTo(xStart, linePositionY);
+						this.chart.ctx.lineTo(this.scale.width, linePositionY);
+						this.chart.ctx.stroke();
+						this.chart.ctx.closePath();
+
+					}
+
+
+					this.chart.ctx.setLineDash([]);
+
+					this.chart.ctx.lineWidth = this.lineWidth;
+					this.chart.ctx.strokeStyle = this.lineColor;
+					this.chart.ctx.beginPath();
+					this.chart.ctx.moveTo(xStart, linePositionY);
+					this.chart.ctx.lineTo(xStart, linePositionY);
+
+					this.chart.ctx.stroke();
+					this.chart.ctx.closePath();
+					this.chart.ctx.moveTo(xStart, linePositionY);
+					this.chart.ctx.lineTo(this.scale.width, linePositionY);
+					this.chart.ctx.lineTo(this.scale.width, this.scale.endPoint);
+					this.chart.ctx.lineTo(xStart, this.scale.endPoint);
+					this.chart.ctx.fillStyle = lines[i].fillColor;
+					this.chart.ctx.fill();
+				}
+			}
 		}
 	});
 
